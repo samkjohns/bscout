@@ -17,6 +17,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   businesses    Business[]
+  comments      Comment[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 }
@@ -65,6 +66,7 @@ model Business {
   ownerId     String
   owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   tags        BusinessTag[]
+  comments    Comment[]
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -85,4 +87,16 @@ model BusinessTag {
   tag        Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
   @@id([businessId, tagId])
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  body       String
+  businessId String
+  userId     String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@index([businessId, createdAt])
 }

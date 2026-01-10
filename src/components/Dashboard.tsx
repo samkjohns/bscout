@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
@@ -524,7 +526,11 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <div>
-                      <strong>{business.name}</strong>
+                      <strong>
+                        <Link href={`/businesses/${business.id}`}>
+                          {business.name}
+                        </Link>
+                      </strong>
                       {business.website ? (
                         <span>
                           {" "}
