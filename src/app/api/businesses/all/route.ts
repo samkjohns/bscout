@@ -48,6 +48,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     businesses: businesses.map((business) => ({
       id: business.id,
+      ownerId: business.ownerId,
       name: business.name,
       description: business.description,
       website: business.website,

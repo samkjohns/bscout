@@ -1,61 +1,15 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-
-import { authOptions } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeTags } from "@/lib/tagging";
 
-export async function GET(request: Request) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const { searchParams } = new URL(request.url);
-  const tag = searchParams.get("tag");
-
-  const businesses = await prisma.business.findMany({
-    where: {
-      ownerId: session.user.id,
-      ...(tag
-        ? {
-            tags: {
-              some: {
-                tag: {
-                  name: tag.trim().toLowerCase()
-                }
-              }
-            }
-          }
-        : {})
-    },
-    include: {
-      tags: {
-        include: {
-          tag: true
-        }
-      }
-    },
-    orderBy: {
-      createdAt: "desc"
-    }
-  });
-
-  return NextResponse.json({
-    businesses: businesses.map((business) => ({
-      id: business.id,
-      ownerId: business.ownerId,
-      name: business.name,
-      description: business.description,
-      website: business.website,
-      tags: business.tags.map((link) => link.tag.name)
-    }))
-  });
-}
-
-export async function POST(request: Request) {
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -76,17 +30,35 @@ export async function POST(request: Request) {
     );
   }
 
+  const business = await prisma.business.findFirst({
+    where: {
+      id: params.id,
+      ownerId: session.user.id
+    }
+  });
+
+  if (!business) {
+    return NextResponse.json(
+      { error: "Business not found." },
+      { status: 404 }
+    );
+  }
+
   const tagList = normalizeTags(Array.isArray(tags) ? tags : []);
 
   try {
-    const created = await prisma.$transaction(async (tx) => {
-      const business = await tx.business.create({
+    await prisma.$transaction(async (tx) => {
+      await tx.business.update({
+        where: { id: business.id },
         data: {
           name: name.trim(),
           description: description?.trim() || null,
-          website: website?.trim() || null,
-          ownerId: session.user.id
+          website: website?.trim() || null
         }
+      });
+
+      await tx.businessTag.deleteMany({
+        where: { businessId: business.id }
       });
 
       for (const tagName of tagList) {
@@ -103,14 +75,9 @@ export async function POST(request: Request) {
           }
         });
       }
-
-      return business;
     });
 
-    return NextResponse.json({
-      id: created.id,
-      name: created.name
-    });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
@@ -122,7 +89,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { error: "Could not save business." },
+      { error: "Could not update business." },
       { status: 500 }
     );
   }

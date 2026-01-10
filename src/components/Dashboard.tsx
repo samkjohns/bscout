@@ -5,6 +5,7 @@ import { signIn, signOut, useSession } from "next-auth/react";
 
 type Business = {
   id: string;
+  ownerId: string;
   name: string;
   description: string | null;
   website: string | null;
@@ -24,6 +25,13 @@ export default function Dashboard() {
   const [error, setError] = useState<string | null>(null);
   const [searchTag, setSearchTag] = useState("");
   const [scope, setScope] = useState<Scope>("mine");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    description: "",
+    website: "",
+    tags: ""
+  });
 
   const [registerForm, setRegisterForm] = useState({
     name: "",
@@ -138,6 +146,48 @@ export default function Dashboard() {
     }
 
     setBusinessForm({ name: "", description: "", website: "", tags: "" });
+    fetchBusinesses(searchTag, scope);
+  };
+
+  const handleEdit = (business: Business) => {
+    setEditingId(business.id);
+    setEditForm({
+      name: business.name,
+      description: business.description ?? "",
+      website: business.website ?? "",
+      tags: business.tags.join(", ")
+    });
+  };
+
+  const handleUpdateBusiness = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!editingId) return;
+    setError(null);
+
+    const tags = editForm.tags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+
+    const response = await fetch(`/api/businesses/${editingId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: editForm.name,
+        description: editForm.description,
+        website: editForm.website,
+        tags
+      })
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      setError(data.error ?? "Could not update business.");
+      return;
+    }
+
+    setEditingId(null);
+    setEditForm({ name: "", description: "", website: "", tags: "" });
     fetchBusinesses(searchTag, scope);
   };
 
@@ -385,37 +435,136 @@ export default function Dashboard() {
           <div className="list">
             {businesses.map((business) => (
               <div key={business.id} className="business">
-                <div>
-                  <strong>{business.name}</strong>
-                  {business.website ? (
-                    <span>
-                      {" "}
-                      <a
-                        href={business.website}
-                        target="_blank"
-                        rel="noreferrer"
+                {editingId === business.id ? (
+                  <form className="grid" onSubmit={handleUpdateBusiness}>
+                    <div>
+                      <label htmlFor={`edit-name-${business.id}`}>
+                        Business name
+                      </label>
+                      <input
+                        id={`edit-name-${business.id}`}
+                        type="text"
+                        value={editForm.name}
+                        onChange={(event) =>
+                          setEditForm({
+                            ...editForm,
+                            name: event.target.value
+                          })
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`edit-description-${business.id}`}>
+                        Description
+                      </label>
+                      <textarea
+                        id={`edit-description-${business.id}`}
+                        rows={3}
+                        value={editForm.description}
+                        onChange={(event) =>
+                          setEditForm({
+                            ...editForm,
+                            description: event.target.value
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`edit-website-${business.id}`}>
+                        Website
+                      </label>
+                      <input
+                        id={`edit-website-${business.id}`}
+                        type="url"
+                        value={editForm.website}
+                        onChange={(event) =>
+                          setEditForm({
+                            ...editForm,
+                            website: event.target.value
+                          })
+                        }
+                        placeholder="https://"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor={`edit-tags-${business.id}`}>Tags</label>
+                      <input
+                        id={`edit-tags-${business.id}`}
+                        type="text"
+                        value={editForm.tags}
+                        onChange={(event) =>
+                          setEditForm({
+                            ...editForm,
+                            tags: event.target.value
+                          })
+                        }
+                        placeholder="coffee, wifi, pastries"
+                      />
+                    </div>
+                    <div style={{ display: "flex", gap: 12 }}>
+                      <button type="submit">Save changes</button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => {
+                          setEditingId(null);
+                          setEditForm({
+                            name: "",
+                            description: "",
+                            website: "",
+                            tags: ""
+                          });
+                        }}
                       >
-                        {business.website}
-                      </a>
-                    </span>
-                  ) : null}
-                </div>
-                {business.owner ? (
-                  <p>
-                    Added by {business.owner.name || business.owner.email}
-                  </p>
-                ) : null}
-                {business.description ? <p>{business.description}</p> : null}
-                {business.tags.length ? (
-                  <div className="tags">
-                    {business.tags.map((tag) => (
-                      <span key={tag} className="badge">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
                 ) : (
-                  <p>No tags yet.</p>
+                  <>
+                    <div>
+                      <strong>{business.name}</strong>
+                      {business.website ? (
+                        <span>
+                          {" "}
+                          <a
+                            href={business.website}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {business.website}
+                          </a>
+                        </span>
+                      ) : null}
+                    </div>
+                    {business.owner ? (
+                      <p>
+                        Added by {business.owner.name || business.owner.email}
+                      </p>
+                    ) : null}
+                    {business.description ? <p>{business.description}</p> : null}
+                    {business.tags.length ? (
+                      <div className="tags">
+                        {business.tags.map((tag) => (
+                          <span key={tag} className="badge">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p>No tags yet.</p>
+                    )}
+                    {business.ownerId === session.user.id ? (
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => handleEdit(business)}
+                      >
+                        Edit business
+                      </button>
+                    ) : null}
+                  </>
                 )}
               </div>
             ))}

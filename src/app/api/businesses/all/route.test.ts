@@ -40,6 +40,7 @@ describe("/api/businesses/all", () => {
     mocks.prisma.business.findMany.mockResolvedValue([
       {
         id: "biz-1",
+        ownerId: "user-9",
         name: "Cafe",
         description: null,
         website: null,
@@ -62,6 +63,7 @@ describe("/api/businesses/all", () => {
     expect(payload.businesses).toEqual([
       {
         id: "biz-1",
+        ownerId: "user-9",
         name: "Cafe",
         description: null,
         website: null,
