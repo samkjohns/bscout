@@ -36,3 +36,16 @@ A simple business tagging and search app built with Next.js, Prisma, and NextAut
    ```
 
 Visit `http://localhost:3000`.
+
+## Seed demo data
+
+This creates a demo user and a handful of tagged businesses.
+
+```bash
+npm run db:seed
+```
+
+Demo credentials:
+
+- Email: `demo@bscout.test`
+- Password: `demo1234`

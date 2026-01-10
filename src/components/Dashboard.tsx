@@ -9,7 +9,13 @@ type Business = {
   description: string | null;
   website: string | null;
   tags: string[];
+  owner?: {
+    name: string | null;
+    email: string;
+  };
 };
+
+type Scope = "mine" | "all";
 
 export default function Dashboard() {
   const { data: session, status } = useSession();
@@ -17,6 +23,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchTag, setSearchTag] = useState("");
+  const [scope, setScope] = useState<Scope>("mine");
 
   const [registerForm, setRegisterForm] = useState({
     name: "",
@@ -34,12 +41,15 @@ export default function Dashboard() {
     tags: ""
   });
 
-  const fetchBusinesses = async (tag?: string) => {
+  const fetchBusinesses = async (tag?: string, scopeOverride?: Scope) => {
+    const currentScope = scopeOverride ?? scope;
     setLoading(true);
     setError(null);
     try {
+      const base =
+        currentScope === "all" ? "/api/businesses/all" : "/api/businesses";
       const query = tag ? `?tag=${encodeURIComponent(tag)}` : "";
-      const response = await fetch(`/api/businesses${query}`);
+      const response = await fetch(`${base}${query}`);
       if (!response.ok) {
         throw new Error("Failed to load businesses.");
       }
@@ -55,7 +65,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (session?.user?.id) {
-      fetchBusinesses();
+      fetchBusinesses("", scope);
     }
   }, [session?.user?.id]);
 
@@ -128,12 +138,12 @@ export default function Dashboard() {
     }
 
     setBusinessForm({ name: "", description: "", website: "", tags: "" });
-    fetchBusinesses(searchTag);
+    fetchBusinesses(searchTag, scope);
   };
 
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
-    fetchBusinesses(searchTag);
+    fetchBusinesses(searchTag, scope);
   };
 
   if (status === "loading") {
@@ -314,6 +324,31 @@ export default function Dashboard() {
           <h3>Search by tag</h3>
           <form className="grid" onSubmit={handleSearch}>
             <div>
+              <label>Browse scope</label>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  className={scope === "mine" ? "" : "secondary"}
+                  onClick={() => {
+                    setScope("mine");
+                    fetchBusinesses(searchTag, "mine");
+                  }}
+                >
+                  My businesses
+                </button>
+                <button
+                  type="button"
+                  className={scope === "all" ? "" : "secondary"}
+                  onClick={() => {
+                    setScope("all");
+                    fetchBusinesses(searchTag, "all");
+                  }}
+                >
+                  All businesses
+                </button>
+              </div>
+            </div>
+            <div>
               <label htmlFor="search-tag">Tag</label>
               <input
                 id="search-tag"
@@ -325,23 +360,23 @@ export default function Dashboard() {
             </div>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               <button type="submit">Search</button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setSearchTag("");
-                  fetchBusinesses();
-                }}
-              >
-                Clear
-              </button>
-            </div>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => {
+                    setSearchTag("");
+                    fetchBusinesses("", scope);
+                  }}
+                >
+                  Clear
+                </button>
+              </div>
           </form>
         </div>
       </div>
 
       <div className="card">
-        <h3>Your businesses</h3>
+        <h3>{scope === "all" ? "All businesses" : "Your businesses"}</h3>
         {loading ? <p>Loading...</p> : null}
         {error ? <p>{error}</p> : null}
         {!loading && businesses.length === 0 ? (
@@ -365,6 +400,11 @@ export default function Dashboard() {
                     </span>
                   ) : null}
                 </div>
+                {business.owner ? (
+                  <p>
+                    Added by {business.owner.name || business.owner.email}
+                  </p>
+                ) : null}
                 {business.description ? <p>{business.description}</p> : null}
                 {business.tags.length ? (
                   <div className="tags">
