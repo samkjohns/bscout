@@ -5,16 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-
-function normalizeTags(tags: string[]) {
-  return Array.from(
-    new Set(
-      tags
-        .map((tag) => tag.trim().toLowerCase())
-        .filter((tag) => tag.length > 0)
-    )
-  );
-}
+import { normalizeTags } from "@/lib/tagging";
 
 export async function GET(request: Request) {
   const session = await getServerSession(authOptions);
