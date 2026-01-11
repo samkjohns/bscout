@@ -82,8 +82,16 @@ async function main() {
     return;
   }
 
+  const usedNames = new Set();
+
   for (let i = 0; i < 18; i += 1) {
-    const name = `${sample(adjectives)} ${sample(nouns)} ${sample(suffixes)}`;
+    let name = `${sample(adjectives)} ${sample(nouns)} ${sample(suffixes)}`;
+    while (usedNames.has(name)) {
+      name = `${sample(adjectives)} ${sample(nouns)} ${sample(suffixes)} ${
+        i + 1
+      }`;
+    }
+    usedNames.add(name);
     const tags = uniqueSample(tagPool, 3 + (i % 3));
 
     await prisma.$transaction(async (tx) => {
