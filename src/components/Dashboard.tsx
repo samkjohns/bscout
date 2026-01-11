@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
 
 type Business = {
@@ -51,7 +51,7 @@ export default function Dashboard() {
     tags: ""
   });
 
-  const fetchBusinesses = async (tag?: string, scopeOverride?: Scope) => {
+  const fetchBusinesses = useCallback(async (tag?: string, scopeOverride?: Scope) => {
     const currentScope = scopeOverride ?? scope;
     setLoading(true);
     setError(null);
@@ -71,13 +71,13 @@ export default function Dashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [scope]);
 
   useEffect(() => {
     if (session?.user?.id) {
       fetchBusinesses("", scope);
     }
-  }, [session?.user?.id]);
+  }, [session?.user?.id, fetchBusinesses]);
 
   const handleRegister = async (event: React.FormEvent) => {
     event.preventDefault();

@@ -1,6 +1,6 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
@@ -16,6 +16,11 @@ global.fetch = mocks.fetch as unknown as typeof fetch;
 import CommentForm from "@/components/CommentForm";
 
 describe("CommentForm", () => {
+  afterEach(() => {
+    cleanup();
+    mocks.fetch.mockReset();
+  });
+
   it("submits a comment and refreshes", async () => {
     mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({}) });
 
