@@ -6,17 +6,28 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeTags } from "@/lib/tagging";
 
-type ResponseData = { error: string } | { ok: true };
+type BusinessResponse = {
+  id: string;
+  ownerId: string;
+  name: string;
+  description: string | null;
+  website: string | null;
+  tags: string[];
+  owner: { name: string | null; email: string };
+  comments: {
+    id: string;
+    body: string;
+    createdAt: Date;
+    user: { name: string | null; email: string };
+  }[];
+};
+
+type ResponseData = { error: string } | { ok: true } | BusinessResponse;
 
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ResponseData>
 ) {
-  if (req.method !== "PATCH") {
-    res.setHeader("Allow", "PATCH");
-    return res.status(405).json({ error: "Method not allowed." });
-  }
-
   const session = await getServerSession(req, res, authOptions);
   if (!session?.user?.id) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -25,6 +36,51 @@ export default async function handler(
   const idParam = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
   if (!idParam) {
     return res.status(400).json({ error: "Business id is required." });
+  }
+
+  if (req.method === "GET") {
+    const business = await prisma.business.findUnique({
+      where: { id: idParam },
+      include: {
+        owner: {
+          select: { name: true, email: true }
+        },
+        tags: {
+          include: { tag: true }
+        },
+        comments: {
+          include: {
+            user: { select: { name: true, email: true } }
+          },
+          orderBy: { createdAt: "desc" }
+        }
+      }
+    });
+
+    if (!business) {
+      return res.status(404).json({ error: "Business not found." });
+    }
+
+    return res.status(200).json({
+      id: business.id,
+      ownerId: business.ownerId,
+      name: business.name,
+      description: business.description,
+      website: business.website,
+      tags: business.tags.map((link) => link.tag.name),
+      owner: business.owner,
+      comments: business.comments.map((comment) => ({
+        id: comment.id,
+        body: comment.body,
+        createdAt: comment.createdAt,
+        user: comment.user
+      }))
+    });
+  }
+
+  if (req.method !== "PATCH") {
+    res.setHeader("Allow", "GET, PATCH");
+    return res.status(405).json({ error: "Method not allowed." });
   }
 
   const { name, description, website, tags } = req.body as {

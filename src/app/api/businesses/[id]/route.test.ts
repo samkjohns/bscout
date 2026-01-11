@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   prisma: {
     business: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
       update: vi.fn()
     },
     businessTag: {
@@ -42,6 +43,7 @@ describe("/api/businesses/[id]", () => {
   beforeEach(() => {
     mocks.getServerSession.mockReset();
     mocks.prisma.business.findFirst.mockReset();
+    mocks.prisma.business.findUnique.mockReset();
     mocks.prisma.business.update.mockReset();
     mocks.prisma.businessTag.deleteMany.mockReset();
     mocks.prisma.businessTag.create.mockReset();
@@ -156,6 +158,51 @@ describe("/api/businesses/[id]", () => {
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({
       error: "You already added a business with this name."
+    });
+  });
+
+  it("returns business details on GET", async () => {
+    mocks.getServerSession.mockResolvedValue({ user: { id: "user-1" } });
+    mocks.prisma.business.findUnique.mockResolvedValue({
+      id: "biz-1",
+      ownerId: "user-1",
+      name: "Cafe",
+      description: null,
+      website: null,
+      tags: [{ tag: { name: "coffee" } }],
+      owner: { name: "Sam", email: "sam@example.com" },
+      comments: [
+        {
+          id: "comment-1",
+          body: "Great",
+          createdAt: new Date("2024-01-01T00:00:00.000Z"),
+          user: { name: "Alex", email: "alex@example.com" }
+        }
+      ]
+    });
+
+    const req = { method: "GET", query: { id: "biz-1" } };
+    const res = createResponse();
+
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      id: "biz-1",
+      ownerId: "user-1",
+      name: "Cafe",
+      description: null,
+      website: null,
+      tags: ["coffee"],
+      owner: { name: "Sam", email: "sam@example.com" },
+      comments: [
+        {
+          id: "comment-1",
+          body: "Great",
+          createdAt: new Date("2024-01-01T00:00:00.000Z"),
+          user: { name: "Alex", email: "alex@example.com" }
+        }
+      ]
     });
   });
 });

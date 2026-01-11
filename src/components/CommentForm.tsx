@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 
 type CommentFormProps = {
   businessId: string;
+  onPosted?: () => void;
 };
 
-export default function CommentForm({ businessId }: CommentFormProps) {
+export default function CommentForm({ businessId, onPosted }: CommentFormProps) {
   const router = useRouter();
   const [text, setText] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +33,7 @@ export default function CommentForm({ businessId }: CommentFormProps) {
       }
 
       setText("");
+      onPosted?.();
       router.refresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : "Unknown error.";

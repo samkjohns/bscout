@@ -1,5 +1,5 @@
 import React from "react";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -23,8 +23,9 @@ describe("CommentForm", () => {
 
   it("submits a comment and refreshes", async () => {
     mocks.fetch.mockResolvedValue({ ok: true, json: async () => ({}) });
+    const onPosted = vi.fn();
 
-    render(<CommentForm businessId="biz-1" />);
+    render(<CommentForm businessId="biz-1" onPosted={onPosted} />);
 
     fireEvent.change(screen.getByLabelText(/comment/i), {
       target: { value: "Nice place" }
@@ -32,12 +33,15 @@ describe("CommentForm", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /post comment/i }));
 
-    expect(mocks.fetch).toHaveBeenCalledWith(
-      "/api/businesses/biz-1/comments",
-      expect.objectContaining({
-        method: "POST"
-      })
-    );
+    await waitFor(() => {
+      expect(mocks.fetch).toHaveBeenCalledWith(
+        "/api/businesses/biz-1/comments",
+        expect.objectContaining({
+          method: "POST"
+        })
+      );
+      expect(onPosted).toHaveBeenCalled();
+    });
   });
 
   it("shows errors from the API", async () => {

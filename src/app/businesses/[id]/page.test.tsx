@@ -1,71 +1,64 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  getServerSession: vi.fn(),
-  redirect: vi.fn(),
-  notFound: vi.fn(),
-  prisma: {
-    business: {
-      findUnique: vi.fn()
-    }
-  }
+  status: "authenticated",
+  push: vi.fn(),
+  fetch: vi.fn()
 }));
 
-vi.mock("next-auth", () => ({
-  getServerSession: mocks.getServerSession
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ status: mocks.status })
 }));
 
 vi.mock("next/navigation", () => ({
-  redirect: mocks.redirect,
-  notFound: mocks.notFound
+  useRouter: () => ({ push: mocks.push })
 }));
 
-vi.mock("@/lib/prisma", () => ({
-  prisma: mocks.prisma
-}));
-
-vi.mock("@/components/CommentForm", () => ({
-  default: () => <div data-testid="comment-form" />
-}));
+global.fetch = mocks.fetch as unknown as typeof fetch;
 
 import BusinessPage from "@/app/businesses/[id]/page";
 
 describe("BusinessPage", () => {
   it("redirects unauthenticated users", async () => {
-    mocks.getServerSession.mockResolvedValue(null);
+    mocks.status = "unauthenticated";
 
-    await BusinessPage({ params: { id: "biz-1" } });
+    render(<BusinessPage params={{ id: "biz-1" }} />);
 
-    expect(mocks.redirect).toHaveBeenCalledWith("/auth/signin");
+    await waitFor(() => {
+      expect(mocks.push).toHaveBeenCalledWith("/auth/signin");
+    });
   });
 
-  it("renders business details and comments", async () => {
-    mocks.getServerSession.mockResolvedValue({ user: { id: "user-1" } });
-    mocks.prisma.business.findUnique.mockResolvedValue({
-      id: "biz-1",
-      name: "Cafe",
-      description: "Cozy spot",
-      website: "https://cafe.example",
-      owner: { name: "Sam", email: "sam@example.com" },
-      tags: [{ tag: { id: "tag-1", name: "coffee" } }],
-      comments: [
-        {
-          id: "comment-1",
-          body: "Great!",
-          createdAt: new Date("2024-01-01T00:00:00.000Z"),
-          user: { name: "Alex", email: "alex@example.com" }
-        }
-      ]
+  it("renders business details", async () => {
+    mocks.status = "authenticated";
+    mocks.fetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: "biz-1",
+        ownerId: "user-1",
+        name: "Cafe",
+        description: "Cozy spot",
+        website: "https://cafe.example",
+        tags: ["coffee"],
+        owner: { name: "Sam", email: "sam@example.com" },
+        comments: [
+          {
+            id: "comment-1",
+            body: "Great!",
+            createdAt: "2024-01-01T00:00:00.000Z",
+            user: { name: "Alex", email: "alex@example.com" }
+          }
+        ]
+      })
     });
 
-    render(await BusinessPage({ params: { id: "biz-1" } }));
+    render(<BusinessPage params={{ id: "biz-1" }} />);
 
-    expect(screen.getByRole("heading", { name: "Cafe" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Cafe" })).toBeInTheDocument();
     expect(screen.getByText("Cozy spot")).toBeInTheDocument();
     expect(screen.getByText("coffee")).toBeInTheDocument();
-    expect(screen.getByTestId("comment-form")).toBeInTheDocument();
     expect(screen.getByText("Great!")).toBeInTheDocument();
   });
 });

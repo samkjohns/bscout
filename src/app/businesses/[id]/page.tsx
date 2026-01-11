@@ -1,44 +1,90 @@
-import React from "react";
-import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { getServerSession } from "next-auth";
+"use client";
 
-import { authOptions } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import React, { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+
 import CommentForm from "@/components/CommentForm";
 
-export const dynamic = "force-dynamic";
+type Business = {
+  id: string;
+  ownerId: string;
+  name: string;
+  description: string | null;
+  website: string | null;
+  tags: string[];
+  owner: { name: string | null; email: string };
+  comments: {
+    id: string;
+    body: string;
+    createdAt: string;
+    user: { name: string | null; email: string };
+  }[];
+};
 
-export default async function BusinessPage({
-  params
-}: {
+type BusinessPageProps = {
   params: { id: string };
-}) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    redirect("/auth/signin");
+};
+
+export default function BusinessPage({ params }: BusinessPageProps) {
+  const router = useRouter();
+  const { status } = useSession();
+  const [business, setBusiness] = useState<Business | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchBusiness = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const response = await fetch(`/api/businesses/${params.id}`);
+
+    if (response.status === 401) {
+      router.push("/auth/signin");
+      return;
+    }
+
+    if (!response.ok) {
+      const data = await response.json();
+      setError(data.error ?? "Could not load business.");
+      setLoading(false);
+      return;
+    }
+
+    const data = (await response.json()) as Business;
+    setBusiness(data);
+    setLoading(false);
+  }, [params.id, router]);
+
+  useEffect(() => {
+    if (status === "loading") return;
+    if (status === "unauthenticated") {
+      router.push("/auth/signin");
+      return;
+    }
+
+    fetchBusiness();
+  }, [status, router, fetchBusiness]);
+
+  if (loading || status === "loading") {
+    return (
+      <main>
+        <p>Loading business...</p>
+      </main>
+    );
   }
 
-  const business = await prisma.business.findUnique({
-    where: { id: params.id },
-    include: {
-      owner: {
-        select: { name: true, email: true }
-      },
-      tags: {
-        include: { tag: true }
-      },
-      comments: {
-        include: {
-          user: { select: { name: true, email: true } }
-        },
-        orderBy: { createdAt: "desc" }
-      }
-    }
-  });
-
-  if (!business) {
-    notFound();
+  if (error || !business) {
+    return (
+      <main>
+        <div className="card">
+          <h2>Business unavailable</h2>
+          <p>{error ?? "We could not find this business."}</p>
+          <Link href="/">Back to dashboard</Link>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -72,9 +118,9 @@ export default async function BusinessPage({
           )}
           <div className="tags">
             {business.tags.length ? (
-              business.tags.map((link) => (
-                <span key={link.tag.id} className="badge">
-                  {link.tag.name}
+              business.tags.map((tag) => (
+                <span key={tag} className="badge">
+                  {tag}
                 </span>
               ))
             ) : (
@@ -85,7 +131,7 @@ export default async function BusinessPage({
 
         <div className="card">
           <h2>Leave a comment</h2>
-          <CommentForm businessId={business.id} />
+          <CommentForm businessId={business.id} onPosted={fetchBusiness} />
         </div>
       </div>
 

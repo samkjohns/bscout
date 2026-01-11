@@ -5,5 +5,6 @@ node_modules
 .env.*.local
 prisma/dev.db
 prisma/dev.db-journal
+.idea/
 .vercel
 .env*.local
