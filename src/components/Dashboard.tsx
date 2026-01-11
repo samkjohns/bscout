@@ -50,6 +50,22 @@ export default function Dashboard() {
     website: "",
     tags: ""
   });
+  const [bulkFile, setBulkFile] = useState<File | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<"idle" | "uploading">("idle");
+  const [bulkResult, setBulkResult] = useState<{
+    created: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
+  const [bulkPreview, setBulkPreview] = useState<{
+    totalParsed: number;
+    items: {
+      name?: string;
+      description?: string | null;
+      website?: string | null;
+      tags?: string[] | string;
+    }[];
+  } | null>(null);
 
   const fetchBusinesses = useCallback(async (tag?: string, scopeOverride?: Scope) => {
     const currentScope = scopeOverride ?? scope;
@@ -196,6 +212,81 @@ export default function Dashboard() {
   const handleSearch = async (event: React.FormEvent) => {
     event.preventDefault();
     fetchBusinesses(searchTag, scope);
+  };
+
+  const handleBulkUpload = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setBulkResult(null);
+    setBulkPreview(null);
+
+    if (!bulkFile) {
+      setError("Choose a spreadsheet file to upload.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", bulkFile);
+
+    setBulkStatus("uploading");
+
+    const response = await fetch("/api/businesses/bulk", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.error ?? "Bulk upload failed.");
+      setBulkStatus("idle");
+      return;
+    }
+
+    setBulkResult({
+      created: data.created ?? 0,
+      skipped: data.skipped ?? 0,
+      errors: data.errors ?? []
+    });
+    setBulkStatus("idle");
+    setBulkFile(null);
+    fetchBusinesses(searchTag, scope);
+  };
+
+  const handleBulkPreview = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+    setBulkResult(null);
+    setBulkPreview(null);
+
+    if (!bulkFile) {
+      setError("Choose a spreadsheet file to upload.");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", bulkFile);
+
+    setBulkStatus("uploading");
+
+    const response = await fetch("/api/businesses/bulk?preview=true", {
+      method: "POST",
+      body: formData
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setError(data.error ?? "Preview failed.");
+      setBulkStatus("idle");
+      return;
+    }
+
+    setBulkPreview({
+      totalParsed: data.totalParsed ?? 0,
+      items: data.preview ?? []
+    });
+    setBulkStatus("idle");
   };
 
   if (status === "loading") {
@@ -424,6 +515,75 @@ export default function Dashboard() {
                 </button>
               </div>
           </form>
+        </div>
+
+        <div className="card">
+          <h3>Bulk upload</h3>
+          <p>Upload a spreadsheet and let AI map your columns.</p>
+          <form className="grid" onSubmit={handleBulkUpload}>
+            <div>
+              <label htmlFor="bulk-file">Spreadsheet file</label>
+              <input
+                id="bulk-file"
+                type="file"
+                accept=".csv,.xlsx,.xls"
+                onChange={(event) =>
+                  setBulkFile(event.target.files?.[0] ?? null)
+                }
+              />
+            </div>
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="secondary"
+                disabled={bulkStatus === "uploading"}
+                onClick={handleBulkPreview}
+              >
+                {bulkStatus === "uploading" ? "Analyzing..." : "Preview import"}
+              </button>
+              <button type="submit" disabled={bulkStatus === "uploading"}>
+                {bulkStatus === "uploading"
+                  ? "Uploading..."
+                  : "Import businesses"}
+              </button>
+            </div>
+          </form>
+          {bulkPreview ? (
+            <div style={{ marginTop: 12 }}>
+              <p>Parsed {bulkPreview.totalParsed} rows.</p>
+              <div className="list">
+                {bulkPreview.items.map((item, index) => (
+                  <div key={`${item.name ?? "item"}-${index}`} className="business">
+                    <strong>{item.name ?? "Untitled"}</strong>
+                    {item.website ? <p>{item.website}</p> : null}
+                    {item.description ? <p>{item.description}</p> : null}
+                    {item.tags ? (
+                      <div className="tags">
+                        {(Array.isArray(item.tags)
+                          ? item.tags
+                          : [item.tags]
+                        ).map((tag) => (
+                          <span key={tag} className="badge">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
+          {bulkResult ? (
+            <div style={{ marginTop: 12 }}>
+              <p>
+                Imported {bulkResult.created} · Skipped {bulkResult.skipped}
+              </p>
+              {bulkResult.errors.length ? (
+                <p>{bulkResult.errors.join(" ")}</p>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
 

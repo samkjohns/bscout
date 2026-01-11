@@ -15,6 +15,7 @@ A simple business tagging and search app built with Next.js, Prisma, and NextAut
    - `DATABASE_URL` (ex: `file:./dev.db`)
    - `NEXTAUTH_URL` (ex: `http://localhost:3000`)
    - `NEXTAUTH_SECRET` (generate with `openssl rand -base64 32`)
+   - `OPENAI_API_KEY` (required for bulk spreadsheet imports)
 
 2. Install dependencies:
 
@@ -36,6 +37,12 @@ A simple business tagging and search app built with Next.js, Prisma, and NextAut
    ```
 
 Visit `http://localhost:3000`.
+
+## Bulk import
+
+Use the dashboard's “Bulk upload” card to upload a `.csv` or `.xlsx` file. The
+server sends a preview to OpenAI to map columns into businesses, tags, and
+websites. Preview before importing to verify the mapping.
 
 ## Seed demo data
 
