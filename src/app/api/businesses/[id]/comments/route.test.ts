@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("next-auth", () => ({
+vi.mock("next-auth/next", () => ({
   getServerSession: mocks.getServerSession
 }));
 
@@ -20,7 +20,16 @@ vi.mock("@/lib/prisma", () => ({
   prisma: mocks.prisma
 }));
 
-import { POST } from "@/app/api/businesses/[id]/comments/route";
+import handler from "@/pages/api/businesses/[id]/comments";
+
+const createResponse = () => {
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+    setHeader: vi.fn()
+  };
+  return res;
+};
 
 describe("/api/businesses/[id]/comments", () => {
   beforeEach(() => {
@@ -32,47 +41,47 @@ describe("/api/businesses/[id]/comments", () => {
   it("rejects unauthenticated requests", async () => {
     mocks.getServerSession.mockResolvedValue(null);
 
-    const response = await POST(
-      new Request("http://localhost/api/businesses/biz-1/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Great spot!" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = {
+      method: "POST",
+      query: { id: "biz-1" },
+      body: { text: "Great spot!" }
+    };
+    const res = createResponse();
 
-    expect(response.status).toBe(401);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it("requires comment text", async () => {
     mocks.getServerSession.mockResolvedValue({ user: { id: "user-1" } });
 
-    const response = await POST(
-      new Request("http://localhost/api/businesses/biz-1/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = {
+      method: "POST",
+      query: { id: "biz-1" },
+      body: { text: "" }
+    };
+    const res = createResponse();
 
-    expect(response.status).toBe(400);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it("returns 404 for missing business", async () => {
     mocks.getServerSession.mockResolvedValue({ user: { id: "user-1" } });
     mocks.prisma.business.findUnique.mockResolvedValue(null);
 
-    const response = await POST(
-      new Request("http://localhost/api/businesses/biz-1/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Great spot!" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = {
+      method: "POST",
+      query: { id: "biz-1" },
+      body: { text: "Great spot!" }
+    };
+    const res = createResponse();
 
-    expect(response.status).toBe(404);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 
   it("creates a comment", async () => {
@@ -85,18 +94,16 @@ describe("/api/businesses/[id]/comments", () => {
       user: { name: "Sam", email: "sam@example.com" }
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/businesses/biz-1/comments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: "Great spot!" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = {
+      method: "POST",
+      query: { id: "biz-1" },
+      body: { text: "Great spot!" }
+    };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(200);
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(mocks.prisma.comment.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -106,7 +113,7 @@ describe("/api/businesses/[id]/comments", () => {
         })
       })
     );
-    expect(payload).toEqual({
+    expect(res.json).toHaveBeenCalledWith({
       id: "comment-1",
       body: "Great spot!",
       createdAt: "2024-01-01T00:00:00.000Z",

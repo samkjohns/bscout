@@ -1,24 +1,33 @@
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { getServerSession } from "next-auth/next";
 import { Prisma } from "@prisma/client";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { normalizeTags } from "@/lib/tagging";
 
-export const dynamic = "force-dynamic";
+type ResponseData = { error: string } | { ok: true };
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse<ResponseData>
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (req.method !== "PATCH") {
+    res.setHeader("Allow", "PATCH");
+    return res.status(405).json({ error: "Method not allowed." });
   }
 
-  const body = await request.json();
-  const { name, description, website, tags } = body as {
+  const session = await getServerSession(req, res, authOptions);
+  if (!session?.user?.id) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  const idParam = Array.isArray(req.query.id) ? req.query.id[0] : req.query.id;
+  if (!idParam) {
+    return res.status(400).json({ error: "Business id is required." });
+  }
+
+  const { name, description, website, tags } = req.body as {
     name?: string;
     description?: string;
     website?: string;
@@ -26,24 +35,18 @@ export async function PATCH(
   };
 
   if (!name?.trim()) {
-    return NextResponse.json(
-      { error: "Business name is required." },
-      { status: 400 }
-    );
+    return res.status(400).json({ error: "Business name is required." });
   }
 
   const business = await prisma.business.findFirst({
     where: {
-      id: params.id,
+      id: idParam,
       ownerId: session.user.id
     }
   });
 
   if (!business) {
-    return NextResponse.json(
-      { error: "Business not found." },
-      { status: 404 }
-    );
+    return res.status(404).json({ error: "Business not found." });
   }
 
   const tagList = normalizeTags(Array.isArray(tags) ? tags : []);
@@ -79,20 +82,16 @@ export async function PATCH(
       }
     });
 
-    return NextResponse.json({ ok: true });
+    return res.status(200).json({ ok: true });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError) {
       if (error.code === "P2002") {
-        return NextResponse.json(
-          { error: "You already added a business with this name." },
-          { status: 409 }
-        );
+        return res
+          .status(409)
+          .json({ error: "You already added a business with this name." });
       }
     }
 
-    return NextResponse.json(
-      { error: "Could not update business." },
-      { status: 500 }
-    );
+    return res.status(500).json({ error: "Could not update business." });
   }
 }

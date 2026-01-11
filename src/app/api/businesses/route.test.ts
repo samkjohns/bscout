@@ -11,7 +11,7 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("next-auth", () => ({
+vi.mock("next-auth/next", () => ({
   getServerSession: mocks.getServerSession
 }));
 
@@ -19,7 +19,16 @@ vi.mock("@/lib/prisma", () => ({
   prisma: mocks.prisma
 }));
 
-import { GET, POST } from "@/app/api/businesses/route";
+import handler from "@/pages/api/businesses";
+
+const createResponse = () => {
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+    setHeader: vi.fn()
+  };
+  return res;
+};
 
 describe("/api/businesses", () => {
   beforeEach(() => {
@@ -30,10 +39,12 @@ describe("/api/businesses", () => {
 
   it("rejects unauthenticated GET", async () => {
     mocks.getServerSession.mockResolvedValue(null);
+    const req = { method: "GET", query: {} };
+    const res = createResponse();
 
-    const response = await GET(new Request("http://localhost/api/businesses"));
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(401);
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it("filters businesses by tag", async () => {
@@ -49,12 +60,12 @@ describe("/api/businesses", () => {
       }
     ]);
 
-    const response = await GET(
-      new Request("http://localhost/api/businesses?tag=coffee")
-    );
-    const payload = await response.json();
+    const req = { method: "GET", query: { tag: "coffee" } };
+    const res = createResponse();
 
-    expect(response.status).toBe(200);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(mocks.prisma.business.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
@@ -63,16 +74,18 @@ describe("/api/businesses", () => {
         })
       })
     );
-    expect(payload.businesses).toEqual([
-      {
-        id: "biz-1",
-        ownerId: "user-1",
-        name: "Cafe",
-        description: "Neighborhood spot",
-        website: null,
-        tags: ["coffee"]
-      }
-    ]);
+    expect(res.json).toHaveBeenCalledWith({
+      businesses: [
+        {
+          id: "biz-1",
+          ownerId: "user-1",
+          name: "Cafe",
+          description: "Neighborhood spot",
+          website: null,
+          tags: ["coffee"]
+        }
+      ]
+    });
   });
 
   it("creates a business with tags", async () => {
@@ -94,31 +107,27 @@ describe("/api/businesses", () => {
       callback(tx)
     );
 
-    const response = await POST(
-      new Request("http://localhost/api/businesses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name: "Cafe",
-          description: "Neighborhood spot",
-          website: "https://cafe.example",
-          tags: ["Coffee"]
-        })
-      })
-    );
+    const req = {
+      method: "POST",
+      body: {
+        name: "Cafe",
+        description: "Neighborhood spot",
+        website: "https://cafe.example",
+        tags: ["Coffee"]
+      }
+    };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(200);
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(tx.business.create).toHaveBeenCalled();
     expect(tx.tag.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { name: "coffee" }
       })
     );
-    expect(payload).toEqual({ id: "biz-1", name: "Cafe" });
+    expect(res.json).toHaveBeenCalledWith({ id: "biz-1", name: "Cafe" });
   });
 
   it("handles duplicate business names", async () => {
@@ -131,21 +140,19 @@ describe("/api/businesses", () => {
       })
     );
 
-    const response = await POST(
-      new Request("http://localhost/api/businesses", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          name: "Cafe"
-        })
-      })
-    );
+    const req = {
+      method: "POST",
+      body: {
+        name: "Cafe"
+      }
+    };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(409);
-    expect(payload.error).toMatch(/already added/i);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "You already added a business with this name."
+    });
   });
 });

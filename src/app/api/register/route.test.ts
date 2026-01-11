@@ -20,7 +20,16 @@ vi.mock("bcryptjs", () => ({
   default: mocks.bcrypt
 }));
 
-import { POST } from "@/app/api/register/route";
+import handler from "@/pages/api/register";
+
+const createResponse = () => {
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+    setHeader: vi.fn()
+  };
+  return res;
+};
 
 describe("/api/register", () => {
   beforeEach(() => {
@@ -30,36 +39,36 @@ describe("/api/register", () => {
   });
 
   it("requires email and password", async () => {
-    const response = await POST(
-      new Request("http://localhost/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: "" })
-      })
-    );
+    const req = {
+      method: "POST",
+      body: { email: "" }
+    };
+    const res = createResponse();
 
-    expect(response.status).toBe(400);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it("rejects existing email", async () => {
     mocks.prisma.user.findUnique.mockResolvedValue({ id: "user-1" });
 
-    const response = await POST(
-      new Request("http://localhost/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Sam",
-          email: "sam@example.com",
-          password: "secret"
-        })
-      })
-    );
+    const req = {
+      method: "POST",
+      body: {
+        name: "Sam",
+        email: "sam@example.com",
+        password: "secret"
+      }
+    };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(409);
-    expect(payload.error).toMatch(/already registered/i);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "Email is already registered."
+    });
   });
 
   it("creates a user", async () => {
@@ -71,23 +80,21 @@ describe("/api/register", () => {
       name: "Sam"
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Sam",
-          email: "sam@example.com",
-          password: "secret"
-        })
-      })
-    );
+    const req = {
+      method: "POST",
+      body: {
+        name: "Sam",
+        email: "sam@example.com",
+        password: "secret"
+      }
+    };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(200);
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(mocks.bcrypt.hash).toHaveBeenCalledWith("secret", 10);
-    expect(payload).toEqual({
+    expect(res.json).toHaveBeenCalledWith({
       id: "user-1",
       email: "sam@example.com",
       name: "Sam"

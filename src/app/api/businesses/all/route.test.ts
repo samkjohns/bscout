@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("next-auth", () => ({
+vi.mock("next-auth/next", () => ({
   getServerSession: mocks.getServerSession
 }));
 
@@ -17,7 +17,16 @@ vi.mock("@/lib/prisma", () => ({
   prisma: mocks.prisma
 }));
 
-import { GET } from "@/app/api/businesses/all/route";
+import handler from "@/pages/api/businesses/all";
+
+const createResponse = () => {
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+    setHeader: vi.fn()
+  };
+  return res;
+};
 
 describe("/api/businesses/all", () => {
   beforeEach(() => {
@@ -28,11 +37,12 @@ describe("/api/businesses/all", () => {
   it("rejects unauthenticated requests", async () => {
     mocks.getServerSession.mockResolvedValue(null);
 
-    const response = await GET(
-      new Request("http://localhost/api/businesses/all")
-    );
+    const req = { method: "GET", query: {} };
+    const res = createResponse();
 
-    expect(response.status).toBe(401);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it("returns all businesses with owners", async () => {
@@ -49,27 +59,29 @@ describe("/api/businesses/all", () => {
       }
     ]);
 
-    const response = await GET(
-      new Request("http://localhost/api/businesses/all?tag=coffee")
-    );
-    const payload = await response.json();
+    const req = { method: "GET", query: { tag: "coffee" } };
+    const res = createResponse();
 
-    expect(response.status).toBe(200);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(mocks.prisma.business.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.not.objectContaining({ ownerId: expect.any(String) })
       })
     );
-    expect(payload.businesses).toEqual([
-      {
-        id: "biz-1",
-        ownerId: "user-9",
-        name: "Cafe",
-        description: null,
-        website: null,
-        tags: ["coffee"],
-        owner: { name: "Sam", email: "sam@example.com" }
-      }
-    ]);
+    expect(res.json).toHaveBeenCalledWith({
+      businesses: [
+        {
+          id: "biz-1",
+          ownerId: "user-9",
+          name: "Cafe",
+          description: null,
+          website: null,
+          tags: ["coffee"],
+          owner: { name: "Sam", email: "sam@example.com" }
+        }
+      ]
+    });
   });
 });

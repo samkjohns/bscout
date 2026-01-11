@@ -19,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   }
 }));
 
-vi.mock("next-auth", () => ({
+vi.mock("next-auth/next", () => ({
   getServerSession: mocks.getServerSession
 }));
 
@@ -27,7 +27,16 @@ vi.mock("@/lib/prisma", () => ({
   prisma: mocks.prisma
 }));
 
-import { PATCH } from "@/app/api/businesses/[id]/route";
+import handler from "@/pages/api/businesses/[id]";
+
+const createResponse = () => {
+  const res = {
+    status: vi.fn().mockReturnThis(),
+    json: vi.fn().mockReturnThis(),
+    setHeader: vi.fn()
+  };
+  return res;
+};
 
 describe("/api/businesses/[id]", () => {
   beforeEach(() => {
@@ -43,47 +52,35 @@ describe("/api/businesses/[id]", () => {
   it("rejects unauthenticated requests", async () => {
     mocks.getServerSession.mockResolvedValue(null);
 
-    const response = await PATCH(
-      new Request("http://localhost/api/businesses/biz-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Cafe" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = { method: "PATCH", query: { id: "biz-1" }, body: { name: "Cafe" } };
+    const res = createResponse();
 
-    expect(response.status).toBe(401);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(401);
   });
 
   it("rejects missing name", async () => {
     mocks.getServerSession.mockResolvedValue({ user: { id: "user-1" } });
 
-    const response = await PATCH(
-      new Request("http://localhost/api/businesses/biz-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = { method: "PATCH", query: { id: "biz-1" }, body: { name: "" } };
+    const res = createResponse();
 
-    expect(response.status).toBe(400);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it("returns 404 when not owner", async () => {
     mocks.getServerSession.mockResolvedValue({ user: { id: "user-1" } });
     mocks.prisma.business.findFirst.mockResolvedValue(null);
 
-    const response = await PATCH(
-      new Request("http://localhost/api/businesses/biz-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Cafe" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = { method: "PATCH", query: { id: "biz-1" }, body: { name: "Cafe" } };
+    const res = createResponse();
 
-    expect(response.status).toBe(404);
+    await handler(req as never, res as never);
+
+    expect(res.status).toHaveBeenCalledWith(404);
   });
 
   it("updates business and tags", async () => {
@@ -110,23 +107,21 @@ describe("/api/businesses/[id]", () => {
       callback(tx)
     );
 
-    const response = await PATCH(
-      new Request("http://localhost/api/businesses/biz-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Cafe",
-          description: "Cozy",
-          website: "https://cafe.example",
-          tags: ["Coffee"]
-        })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = {
+      method: "PATCH",
+      query: { id: "biz-1" },
+      body: {
+        name: "Cafe",
+        description: "Cozy",
+        website: "https://cafe.example",
+        tags: ["Coffee"]
+      }
+    };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(200);
+    expect(res.status).toHaveBeenCalledWith(200);
     expect(tx.business.update).toHaveBeenCalled();
     expect(tx.businessTag.deleteMany).toHaveBeenCalledWith({
       where: { businessId: "biz-1" }
@@ -136,7 +131,7 @@ describe("/api/businesses/[id]", () => {
         where: { name: "coffee" }
       })
     );
-    expect(payload.ok).toBe(true);
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
   });
 
   it("handles duplicate business names", async () => {
@@ -153,18 +148,14 @@ describe("/api/businesses/[id]", () => {
       })
     );
 
-    const response = await PATCH(
-      new Request("http://localhost/api/businesses/biz-1", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Cafe" })
-      }),
-      { params: { id: "biz-1" } }
-    );
+    const req = { method: "PATCH", query: { id: "biz-1" }, body: { name: "Cafe" } };
+    const res = createResponse();
 
-    const payload = await response.json();
+    await handler(req as never, res as never);
 
-    expect(response.status).toBe(409);
-    expect(payload.error).toMatch(/already added/i);
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "You already added a business with this name."
+    });
   });
 });
